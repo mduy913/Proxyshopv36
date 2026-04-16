@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>DELTA SHOP - V47 KEY MANAGER</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        :root { --bg: #0d0d16; --cyan: #00f2ff; --gold: #ffcc00; --card: #161625; --red: #ff4444; }
+        body { background: var(--bg); color: white; font-family: sans-serif; padding: 15px; margin: 0; user-select: none; }
+        .box { background: var(--card); padding: 15px; border-radius: 15px; border: 1px solid #333; margin-bottom: 15px; }
+        input, textarea { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; box-sizing: border-box; outline: none; }
+        textarea { height: 80px; font-size: 11px; font-family: monospace; }
+        button { border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; margin-top: 5px; }
+        .btn-main { background: var(--cyan); color: #000; }
+        .btn-gold { background: var(--gold); color: #000; }
+        .btn-adm { background: #555; font-size: 10px; padding: 4px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        table { width:100%; font-size:10px; border-collapse: collapse; }
+        td { padding: 8px; border-bottom: 1px solid #222; }
+        .stock-tag { font-size: 10px; color: var(--cyan); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="msg-box" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#1a1a2e; border:2px solid var(--cyan); padding:20px; border-radius:15px; z-index:9999; text-align:center; width:80%; max-width:300px;">
+        <p id="msg-text" style="font-weight:bold; margin-bottom:15px;"></p>
+        <button class="btn-main" onclick="document.getElementById('msg-box').style.display='none'">OK</button>
+    </div>
+
+    <div id="shop-ui" style="max-width: 500px; margin: auto;">
+        <div id="adm-ctrl" class="box" style="display:none; border: 2px solid var(--red);">
+            <h4 style="color:var(--red); margin:0">QUẢN LÝ KHO KEY</h4>
+            
+            <div style="margin-top:10px;">
+                <label style="font-size:11px;">Thêm Key Ngày (Mỗi dòng 1 key):</label>
+                <textarea id="inp-keys-ngay" placeholder="Dán danh sách key ngày vào đây..."></textarea>
+                <button class="btn-main" style="font-size:10px; padding:5px;" onclick="importKeys('ngay')">NẠP KHO KEY NGÀY</button>
+            </div>
+
+            <div style="margin-top:10px;">
+                <label style="font-size:11px;">Thêm Key Tuần (Mỗi dòng 1 key):</label>
+                <textarea id="inp-keys-tuan" placeholder="Dán danh sách key tuần vào đây..."></textarea>
+                <button class="btn-main" style="font-size:10px; padding:5px;" onclick="importKeys('tuan')">NẠP KHO KEY TUẦN</button>
+            </div>
+
+            <div class="grid" style="margin-top:10px">
+                <button id="btn-sv" onclick="toggleSV()">...</button>
+                <button style="background:#0f9d58" onclick="upPrices()">LƯU GIÁ & RATE</button>
+            </div>
+            <div class="grid">
+                <div>Giá Ngày: <input type="number" id="p-ngay"></div>
+                <div>Giá Tuần: <input type="number" id="p-tuan"></div>
+            </div>
+            Tỉ lệ Random (%): <input type="number" id="p-rate">
+            
+            <h4 style="margin:10px 0 5px 0">DUYỆT NẠP:</h4>
+            <div id="adm-pay-list" style="max-height:100px; overflow:auto; background:#000; border-radius:5px;"></div>
+        </div>
+
+        <div class="box">
+            <span>Sếp: <b id="u-id" style="color:var(--cyan)">...</b></span> | Ví: <b id="u-bl" style="color:var(--gold)">0</b>đ
+            <input type="number" id="n-amt" placeholder="Số tiền nạp...">
+            <button class="btn-gold" onclick="nap()">NẠP TIỀN QR</button>
+        </div>
+        <div class="box" style="border-color: var(--gold);">
+            <h4 style="margin:0 0 10px 0; color:var(--gold)">💎 KHO KEY MUA THẲNG</h4>
+            <div class="grid">
+                <div style="text-align:center">
+                    <button class="btn-gold" onclick="buyD('ngay')">BẢN NGÀY: <span class="txt-p-ngay"></span></button>
+                    <span class="stock-tag">Sẵn có: <b id="v-s-ngay">0</b></span>
+                </div>
+                <div style="text-align:center">
+                    <button class="btn-gold" onclick="buyD('tuan')">BẢN TUẦN: <span class="txt-p-tuan"></span></button>
+                    <span class="stock-tag">Sẵn có: <b id="v-s-tuan">0</b></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="box">
+            <h4>📜 LỊCH SỬ & KEY ĐÃ MUA</h4>
+            <table><tbody id="h-pay"></tbody></table>
+        </div>
+    </div>
+<script>
+    const config = { apiKey: "AIzaSyBk6R1TDZeAxh37JQLgL_6Wl0v8m8Sg0", databaseURL: "https://shopmduy-default-rtdb.asia-southeast1.firebasedatabase.app" };
+    firebase.initializeApp(config); const db = firebase.database(); 
+    let cur = "mduy", curUID = "U123", isAdmin = true, prices = {}, stockCount = {ngay:0, tuan:0};
+
+    // Theo dõi giá và kho
+    db.ref('system/shop1').on('value', s => {
+        const d = s.val() || {};
+        prices = d.prices || { ngay: 20000, tuan: 40000, rate: 10 };
+        document.querySelectorAll('.txt-p-ngay').forEach(el => el.innerText = Number(prices.ngay).toLocaleString() + 'đ');
+        document.querySelectorAll('.txt-p-tuan').forEach(el => el.innerText = Number(prices.tuan).toLocaleString() + 'đ');
+        db.ref('key_vault/ngay').on('value', sk => {
+            stockCount.ngay = sk.numChildren();
+            document.getElementById('v-s-ngay').innerText = stockCount.ngay;
+        });
+        db.ref('key_vault/tuan').on('value', sk => {
+            stockCount.tuan = sk.numChildren();
+            document.getElementById('v-s-tuan').innerText = stockCount.tuan;
+        });
+
+        if(isAdmin) {
+            document.getElementById('adm-ctrl').style.display = 'block';
+            document.getElementById('p-ngay').value = prices.ngay; 
+            document.getElementById('p-tuan').value = prices.tuan;
+            document.getElementById('p-rate').value = prices.rate;
+        }
+    });
+    function importKeys(type) {
+        const raw = document.getElementById('inp-keys-'+type).value;
+        if(!raw.trim()) return showMsg("Vui lòng dán key!");
+      
+        let newKeys = raw.split('\n').map(k => k.trim()).filter(k => k.length > 0);
+        
+        db.ref('key_vault/'+type).once('value', s => {
+            let existingKeys = [];
+            s.forEach(child => { existingKeys.push(child.val().key); });
+            
+            let count = 0;
+            newKeys.forEach(k => {
+                if(!existingKeys.includes(k)) {
+                    db.ref('key_vault/'+type).push({key: k});
+                    count++;
+                }
+            });
+            
+            showMsg(`Đã thêm mới ${count} key. (Bỏ qua ${newKeys.length - count} key trùng)`);
+            document.getElementById('inp-keys-'+type).value = "";
+        });
+    }
+    function buyD(type) {
+        if(stockCount[type] <= 0) return showMsg("Hết key trong kho, vui lòng đợi sếp nạp thêm!");
+        
+        const p = prices[type];
+        db.ref('users/'+cur+'/balance').once('value', s => {
+            if((s.val()||0) < p) return showMsg("Hết tiền nạp thêm đi sếp!");
+            db.ref('key_vault/'+type).limitToFirst(1).once('value', sk => {
+                let keyID = Object.keys(sk.val())[0];
+                let finalKey = sk.val()[keyID].key;           db.ref('users/'+cur+'/balance').transaction(b => b - p);
+                db.ref('key_vault/'+type+'/'+keyID).remove();db.ref('history_pay/'+curUID).push({
+                    time: new Date().toLocaleTimeString(),
+                    amount: "MUA "+type.toUpperCase(),
+                    status: finalKey
+                });
+                
+                showMsg("MUA THÀNH CÔNG! XEM KEY Ở LỊCH SỬ.");
+            });
+        });
+    }
+
+    function showMsg(txt) { document.getElementById('msg-text').innerText = txt; document.getElementById('msg-box').style.display = 'block'; }
+    function upPrices() {
+        const p = { ngay: Number(document.getElementById('p-ngay').value), tuan: Number(document.getElementById('p-tuan').value), rate: Number(document.getElementById('p-rate').value) };
+        db.ref('system/shop1/prices').set(p).then(() => showMsg("Đã lưu giá!"));
+    }
+    function loadHistory() {
+        db.ref('history_pay/'+curUID).on('value', h => {
+            const t = document.getElementById('h-pay'); t.innerHTML = "";
+            h.forEach(c => { const i = c.val(); t.innerHTML = `<tr><td>${i.time}</td><td>${i.amount}</td><td style="color:var(--cyan); font-weight:bold;">${i.status}</td></tr>` + t.innerHTML; });
+        });
+    }
+    document.getElementById('u-id').innerText = cur;
+    loadHistory();
+</script>
+</body>
+</html>
